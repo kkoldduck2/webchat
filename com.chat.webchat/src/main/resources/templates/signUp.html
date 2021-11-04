@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<title>회원가입 페이지</title>
+<script type="text/javascript">
+	var isIdOk =false;
+	var isPasswordOk  = false;
+	
+	function checkingId(){
+		
+		var msg = {	user_id : $('#user_id').val()};
+		
+		commonAjax('/overlapId', msg, 'post', function(result){
+			console.log(result);	// 데이터 형태 확인 
+			if(result ==false){
+				alert("사용가능한 아이디입니다.");
+				isIdOk = true;
+				console.log("idcheck :"+isIdOk+", pwcheck :"+isPasswordOk);
+			} else {
+				alert("이미 사용중인 아이디입니다.");
+				isIdOk = false;
+			}
+		});
+	
+	}
+	
+	function checkingPw(){
+		var pw = $("#pw").val();
+		var pwConfirm = $("#pwConfirm").val();
+		
+		console.log("pw 일치?"+(pw==pwConfirm));
+		if(pw==pwConfirm){
+			alert("패스워드가 일치합니다.");
+			isPasswordOk = true;
+			console.log("idcheck :"+isIdOk+", pwcheck :"+isPasswordOk);
+		}else{
+			alert("패스워드가 일치하지 않습니다. ");
+			isPasswordOk = false;
+		}
+	}
+	
+	
+	function executeSignUp() {
+		console.log("executeSignUp 실행");
+		if(isIdOk && isPasswordOk){
+			var option ={
+				userId: $("#user_id").val(),
+				userPw : $("#pw").val()
+			}
+			console.log("option::"+option)
+			commonAjax("/register",option,'post', function(result){
+				alert("회원가입이 정상적으로 완료되었습니다. ")
+				location.href = "/loginPage.html";
+			});
+		}else{
+			alert("아이디와 비밀번호를 확인해주세요")
+		} 
+	}
+	// submit 보내는 시점에 pw ok, id ok 검사하기 
+	function commonAjax(url, parameter, type, callback, contentType){
+		$.ajax({
+			url: url,
+			data: parameter,
+			type: type,
+			contentType : contentType!=null?contentType:'application/x-www-form-urlencoded; charset=UTF-8',
+			success: function (res) {
+				callback(res);
+			},
+			error : function(err){
+				console.log('error');
+				callback(err);
+			}
+		});
+	}
+</script>
+</head>
+<body>
+	
+	 <label for="user_id">id:</label>
+	 <input type="text" id="user_id" name="user_id"> <button  onclick="checkingId()">아이디 확인</button><br><br>
+	 <label for="pw">password:</label>
+	 <input type="text" id="pw" name="pw"><br><br>
+	 <label for="pwConfirm">pw confirm:</label>
+	 <input type="text" id="pwConfirm" name="pwConfirm"> <button id="checkPw" onclick="checkingPw()">비밀번호 확인</button><br><br>
+	 <button onclick="executeSignUp()" id="sendBtn">회원가입 완료</button>
+	 
+</body>
+</html>

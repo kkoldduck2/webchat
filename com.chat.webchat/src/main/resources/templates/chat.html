@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<title>chat</title>
+<style>
+		*{
+			margin:0;
+			padding:0;
+		}
+		.container{
+			width: 500px;
+			margin: 0 auto;
+			padding: 25px
+		}
+		.container h1{
+			text-align: left;
+			padding: 5px 5px 5px 15px;
+			color: #FFBB00;
+			border-left: 3px solid #FFBB00;
+			margin-bottom: 20px;
+		}
+		.chating{
+			background-color: #000;
+			width: 500px;
+			height: 500px;
+			overflow: auto;
+		}
+		.chating .me{
+			color: #F6F6F6;
+			text-align: right;
+		}
+		.chating .others{
+			color: #FFE400;
+			text-align: left;
+		}
+		input{
+			width: 330px;
+			height: 25px;
+		}
+		#yourMsg{
+			display: none;
+		}
+		.msgImg{
+			width: 200px;
+			height: 125px;
+		}
+		.clearBoth{
+			clear: both;
+		}
+		.imgme{
+			float: right;
+		}
+		.imgothers{
+			float: left;
+		}
+	</style>
+	<link href="/webjars/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <script src="/webjars/jquery/jquery.min.js"></script>
+    <script src="/webjars/sockjs-client/sockjs.min.js"></script>
+    <script src="/webjars/stomp-websocket/stomp.min.js"></script>
+</head>
+<body>
+<!-- <iframe id="fileUploadIframe" name="fileUploadIframe" height="0" width="0"></iframe> -->
+  <div id="container" class="container">
+		<h1 th:text="${roomName}"></h1>
+		<table>
+			<tr>
+				<th><h4>참여자 : </h4></th>
+				<th><h4 class="userCount">참여자 수</h4></th>
+				<th><h4>명 </h4></th>
+			</tr>
+		</table>
+		<!-- <p class="userCount">userCount</p> -->
+		<input type="hidden" id="sender" value="">
+		<input type="hidden" id="roomNumber" th:value="${roomNumber}">
+		
+		<div id="chating" class="chating">
+		</div>
+		
+		<div id="yourMsg">
+			<table class="inputTable">
+				<tr>
+					<th>메시지</th>
+					<th><input id="chatting" placeholder="보내실 메시지를 입력하세요."></th>
+					<th><button th:onclick="send()" id="sendBtn">보내기</button></th>
+				</tr>
+				
+				<tr>
+					<th>파일업로드</th>
+					<th>
+						<form id = "form" target="iframePhoto" action="/file/upload" method="post" enctype="multipart/form-data">
+							<input type="file" id="fileUpload" name="file"/>
+							<input type="hidden" name="roomNumber" th:value="${roomNumber}"/>
+							<input type="hidden" name="sender" th:value="${sender}"/>
+							<input type="hidden" name="token" id="token" value="" /> 
+							<input type="submit" id="sendFileBtn" value ="파일올리기"/>
+						</form>
+						<iframe name="iframePhoto"></iframe>
+					</th> 
+				</tr>
+				 
+			</table>
+		</div>
+	</div>
+</body>
+<script type="text/javascript">
+
+	var stompClient =null;
+	var token = null;
+	window.onload = function(){
+		connect();
+	}
+	
+	function connect(){
+		var socket = new SockJS('/websocket');	
+		stompClient = Stomp.over(socket);	
+		console.log("handshake는 언제 시작하는가 ")
+		commonAjax('/chat/user',"",'get', function(result){	// 토큰 요청 
+			if(result != null){
+				token = result.token;
+				
+				console.log("token setting");
+				$("#token").val(token);
+				
+				stompClient.connect({"token":token}, function(frame) {	
+					console.log("connected to>>> "+JSON.stringify(result)); // result : name, token 
+					//after we connected, we need to subscribe to the new messages from the server
+					// we're subscribing to the topic of messages
+			        $("#sender").val(result.name);
+					stompClient.subscribe('/topic/chat/room/'+$("#roomNumber").val(), function (message) {
+			            var recv = JSON.parse(message.body);
+			           	recvMessage(recv);
+			        });
+					
+					// 입장 메시지 송출
+					stompClient.send("/app/chat/message",{"token":token},JSON.stringify({type:'ENTER', roomId:$("#roomNumber").val(), sender :$("#sender").val()}))
+				});
+				$("#yourMsg").show();
+			}else{
+				console.log("result is null")
+			}
+		});
+		
+	}
+
+	function recvMessage(recv){
+		
+		if(recv != null ){
+			if(recv.type=="ENTER"||recv.type=="TALK"|| recv.type=="QUIT"){
+				$(".userCount").text(recv.userCount); //#userCount
+				if(recv.sender == $("#sender").val()){
+					$("#chating").append("<p class='me'>나 :" + recv.message + "</p>");	
+				}else{
+					$("#chating").append("<p class='others'>" + recv.sender + " :" + recv.message + "</p>");
+				}
+			}else{
+				// localhost:8080/(다운로드 api) 호출
+				// 해당 api는 client에게 파일을 전송해준다. 
+				// client는 파일을 받아서 화면에 뿌려준다. 
+				var url= "http://localhost:8080/file/download/"+recv.fileId;
+				var fileId = recv.fileId;
+			 	var fileArr = fileId.split('.');
+			 	var fileType = fileArr[1];
+			 	console.log("fileType  : "+fileType);
+				if(fileType =='jpg'){
+					if(recv.sender == $("#sender").val()){
+						$("#chating").append("<p class='me'>나 : </p>");	
+						$("#chating").append("<div class='imgme'><a href="+url+" download><img class='msgImg' src="+url+" > </a></div><div class='clearBoth'></div>");
+					}else{
+						$("#chating").append("<p class='others'>" + recv.sender +": </p>");
+						$("#chating").append("<div class='imgothers'><a href="+url+" download><img class='msgImg' src="+url+" > </a></div><div class='clearBoth'></div>");
+					}
+				}else{
+					if(recv.sender == $("#sender").val()){
+						$("#chating").append("<p class='me'>나 : </p>");	
+						$("#chating").append("<div class='imgme'><a href="+url+" download>"+fileId+"</a></div><div class='clearBoth'></div>");
+					}else{
+						$("#chating").append("<p class='others'>" + recv.sender +": </p>");
+						$("#chating").append("<div class='imgothers'><a href="+url+" download>"+fileId+"</a></div><div class='clearBoth'></div>");
+					}
+				}
+				
+			}
+		}
+	}
+
+	// controller로 보내고 controller는 topic/room/{roomName}으로 보낼것
+	// stompClient.send("/app/hello", {}, JSON.stringify({'name': $("#name").val()}));
+	function send() {
+		var option ={
+			type: "TALK",
+			roomId: $("#roomNumber").val(),
+			sender : $("#sender").val(),
+			message : $("#chatting").val()
+		}
+		stompClient.send("/app/chat/message",{token},JSON.stringify(option));
+		$('#chatting').val("");			// 채팅 칸 비우기
+	}
+	
+	/*
+	function arrayBufferToBase64(buffer) {
+	    let binary = '';
+	    let bytes = new Uint8Array(buffer);
+	    let len = bytes.byteLength;
+	    for (let i = 0; i < len; i++) {
+	        binary += String.fromCharCode(bytes[i]);
+	    }
+	    return window.btoa(binary);
+	}
+	*/
+	function out() {
+		disconnect()
+	}
+	function commonAjax(url, parameter, type, callback, contentType){
+		$.ajax({
+			url: url,
+			data: parameter,
+			type: type,
+			contentType : contentType!=null?contentType:'application/x-www-form-urlencoded; charset=UTF-8',
+			success: function (res) {
+				callback(res);
+			},
+			error : function(err){
+				console.log('error');
+				callback(err);
+			}
+		});
+	}
+	document.addEventListener("keypress", function(e){
+		if(e.keyCode == 13){ //enter press
+			send();
+		}
+	});
+	
+	
+</script>
+
+</html>

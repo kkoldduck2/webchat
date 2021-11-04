@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chat.webchat.mapper.TestMapper">
+
+	<select id="getDatabaseVersion" resultType="String">
+		SELECT	/* com.chat.webchat.mapper.TestMapper */
+				VERSION()
+	</select>
+	
+	<!-- id로 유저 정보 불러오기 -->
+	<select id="getUserInfo" parameterType="String" resultType="com.chat.webchat.vo.UserInfoVo">
+		SELECT
+				user_id
+			,	password
+			,	authority
+			,	reg_date
+		FROM userinfo
+		WHERE
+			user_id = #{userId}
+	</select>
+	
+	<insert id="setUserInfo" parameterType="com.chat.webchat.vo.SignUpInfo" >
+		INSERT INTO userinfo (user_id, password, authority)
+		VALUES  (#{userId}, #{userPw}, #{grantType})
+	</insert>
+	
+</mapper>
